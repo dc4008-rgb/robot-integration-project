@@ -1,6 +1,6 @@
 """用 COCO 预训练模型自动预标注 raw/ 里的图片，人工只需检查修正。
 
-前提：data.yaml 里的类别名与 COCO 类别名一致（cup / mouse / keyboard / book 都在 COCO 里）。
+前提：data.yaml 里的类别名与 COCO 类别名一致（cup / mouse / keyboard / bottle 都在 COCO 里）。
 脚本自动把 COCO 类别 id 映射成 data.yaml 里的 id，输出 YOLO 格式 .txt。
 
 用法:

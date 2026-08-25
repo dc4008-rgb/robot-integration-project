@@ -24,11 +24,7 @@ def main() -> None:
     args = parser.parse_args()
 
     data_path = Path(args.data).resolve()
-    # data.yaml 里的相对 path 以文件所在目录为基准，避免服务器上路径找不到
     cfg = yaml.safe_load(data_path.read_text(encoding="utf-8"))
-    if cfg.get("path", ".") == ".":
-        cfg["path"] = str(data_path.parent)
-        data_path.write_text(yaml.safe_dump(cfg, allow_unicode=True), encoding="utf-8")
 
     model = YOLO(args.model)
     model.train(

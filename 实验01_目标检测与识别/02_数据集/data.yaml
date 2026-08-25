@@ -1,7 +1,4 @@
-# YOLO 数据集配置。训练时 ultralytics 读这个文件。
-# path 在服务器上训练时会被 train_yolo.py 覆盖成服务器路径。
-
-path: .
+# YOLO 数据集配置。未指定 path 时，Ultralytics 以本文件所在目录为数据根。
 train: images/train
 val: images/val
 
@@ -9,4 +6,4 @@ names:
   0: cup
   1: mouse
   2: keyboard
-  3: book
+  3: bottle

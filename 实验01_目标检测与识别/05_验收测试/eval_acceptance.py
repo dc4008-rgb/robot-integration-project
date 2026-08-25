@@ -2,7 +2,7 @@
 
 两种模式:
   1) 逐物体测试（验收主流程）—— 每次摆一个物体，输入真值类别，按空格抓拍判定
-        python3 eval_acceptance.py --weights best.engine --classes cup mouse keyboard book
+        python3 eval_acceptance.py --weights best.engine --classes cup mouse keyboard bottle
   2) 纯 FPS 基准 —— 连续跑 200 帧统计推理速度
         python3 eval_acceptance.py --weights best.engine --fps-only
 

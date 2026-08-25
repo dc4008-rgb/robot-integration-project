@@ -53,10 +53,10 @@ Jetson Orin NX 16GB (JetPack 6.2 / L4T R36.4.7 / Ubuntu 22.04.5 / ROS2 Humble)
 先拿 COCO 预训练模型对着自己桌面跑一下，确认摄像头正常、顺便看看类别选得好不好：
 
 ```bash
-yolo predict model=yolov8n.pt source=0 show=True classes=41,64,66,73
+yolo predict model=yolov8n.pt source=0 show=True classes=41,64,66,39
 ```
 
-（`classes` 是 COCO 的 cup/mouse/keyboard/book。）
+（`classes` 是 COCO 的 cup/mouse/keyboard/bottle。）
 
 > 报 `Failed to read images from 0` 是 **macOS 摄像头权限**问题，不是代码错：
 > 系统设置 → 隐私与安全性 → 摄像头 → 允许 **Visual Studio Code**（或改用系统自带的
@@ -97,7 +97,7 @@ python3 01_数据采集/capture_images.py --tag cup --interval 0.5 --source 0
 
 ## 步骤 2 · 标注
 
-**先跑自动预标注**。`cup / mouse / keyboard / book` 四类都在 COCO 80 类里（id 41/64/66/73），
+**先跑自动预标注**。`cup / mouse / keyboard / bottle` 四类都在 COCO 80 类里（id 41/64/66/39），
 所以可以直接用预训练模型把框先画好，人工只需要检查修正：
 
 ```bash
@@ -118,7 +118,7 @@ python -m pip install labelImg && labelImg 02_数据集/raw
 划分训练/验证集：
 
 ```bash
-python 02_数据集/split_dataset.py --val-ratio 0.2
+python 02_数据集/split_dataset.py --raw-dir 训练数据集 --val-ratio 0.2
 ```
 
 ## 步骤 3 · 远程训练
@@ -244,7 +244,7 @@ sudo nvpmodel -m 0 && sudo jetson_clocks
 
 ```bash
 python3 05_验收测试/eval_acceptance.py --weights best.engine \
-    --classes cup mouse keyboard book --trials 20
+    --classes cup mouse keyboard bottle --trials 20
 ```
 
 脚本会先测 FPS，再逐个物体交互式测试，最后输出：
