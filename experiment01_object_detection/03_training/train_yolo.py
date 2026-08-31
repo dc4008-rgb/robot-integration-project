@@ -1,9 +1,9 @@
-"""在服务器（AutoDL）上训练 YOLO 模型。
+"""Train a YOLO model on the server (AutoDL).
 
-用法（服务器上）:
-    python train_yolo.py --data /root/robot_det/02_数据集/data.yaml --epochs 150
+Usage (on the server):
+    python train_yolo.py --data /root/robot_det/02_dataset/data.yaml --epochs 150
 
-训练产物: runs/detect/<name>/weights/best.pt
+Training output: runs/detect/<name>/weights/best.pt
 """
 import argparse
 from pathlib import Path
@@ -13,9 +13,9 @@ from ultralytics import YOLO
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="训练 YOLOv8 目标检测模型")
-    parser.add_argument("--data", required=True, help="data.yaml 路径")
-    parser.add_argument("--model", default="yolov8n.pt", help="预训练权重，n/s/m 依次更大更准更慢")
+    parser = argparse.ArgumentParser(description="Train a YOLOv8 object detection model")
+    parser.add_argument("--data", required=True, help="Path to data.yaml")
+    parser.add_argument("--model", default="yolov8n.pt", help="Pretrained weights; n/s/m are progressively larger, more accurate, and slower")
     parser.add_argument("--epochs", type=int, default=150)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=16)
@@ -38,14 +38,14 @@ def main() -> None:
         name=args.name,
         patience=args.patience,
         save_period=args.save_period,
-        # 桌面物体常见的光照/角度变化，靠这几项增强覆盖
+        # These augmentations cover lighting and angle variations common to desktop objects.
         hsv_h=0.015, hsv_s=0.7, hsv_v=0.4,
         degrees=10.0, translate=0.1, scale=0.5, fliplr=0.5,
         mosaic=1.0,
     )
 
     metrics = model.val()
-    print("\n===== 验证集指标 =====")
+    print("\n===== Validation Metrics =====")
     print(f"mAP50    : {metrics.box.map50:.4f}")
     print(f"mAP50-95 : {metrics.box.map:.4f}")
     for i, name in enumerate(cfg["names"].values()):

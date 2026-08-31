@@ -1,15 +1,16 @@
-"""验收测试脚本：测 20 个物体的识别正确率、Jetson 实时 FPS，并保存错误案例。
+"""Acceptance test for recognition accuracy on 20 objects and real-time Jetson FPS.
 
-两种模式:
-  1) 逐物体测试（验收主流程）—— 每次摆一个物体，输入真值类别，按空格抓拍判定
+The script also saves error cases and supports two modes:
+    1) Per-object test (main acceptance workflow) - present one object at a time,
+         enter its ground-truth class, and press Space to capture and evaluate it
         python3 eval_acceptance.py --weights best.engine --classes cup mouse keyboard bottle
-  2) 纯 FPS 基准 —— 连续跑 200 帧统计推理速度
+    2) FPS-only benchmark - process 200 consecutive frames to measure inference speed
         python3 eval_acceptance.py --weights best.engine --fps-only
 
-产物:
-    results/summary.json     正确率、每类统计、FPS
-    results/records.csv      20 次测试的逐条记录
-    results/errors/*.jpg     识别错误的典型案例（图上标注了真值和预测）
+Outputs:
+        results/summary.json     Accuracy, per-class statistics, and FPS
+        results/records.csv      Individual records for the 20 trials
+        results/errors/*.jpg     Representative errors annotated with ground truth and prediction
 """
 import argparse
 import csv
@@ -34,7 +35,8 @@ def open_camera(source: str, width: int, height: int) -> cv2.VideoCapture:
         )
         return cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
     cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
-    # UVC 摄像头默认 YUYV 未压缩，720p 下只能给 5~10 FPS，必须先切 MJPG 再设分辨率
+    # UVC cameras default to uncompressed YUYV, which provides only 5-10 FPS at 720p.
+    # Switch to MJPG before setting the resolution.
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -45,7 +47,7 @@ def open_camera(source: str, width: int, height: int) -> cv2.VideoCapture:
 def run_fps_benchmark(
     model: YOLO, cap: cv2.VideoCapture, imgsz: int, iou: float, n: int = 200
 ) -> float:
-    """预热 20 帧后统计纯推理耗时，避免首帧 CUDA 初始化拉低数字。"""
+    """Warm up for 20 frames, then measure inference time without CUDA startup skew."""
     for _ in range(20):
         ok, frame = cap.read()
         if ok:
@@ -60,24 +62,24 @@ def run_fps_benchmark(
         model.predict(frame, imgsz=imgsz, iou=iou, verbose=False)
         times.append(time.time() - t0)
         if (i + 1) % 50 == 0:
-            print(f"  {i + 1}/{n} 帧...")
+            print(f"  {i + 1}/{n} frames...")
 
     fps = len(times) / sum(times)
-    print(f"\n平均推理 FPS: {fps:.2f}  (单帧 {1000 * sum(times) / len(times):.1f} ms)")
+    print(f"\nAverage inference FPS: {fps:.2f}  ({1000 * sum(times) / len(times):.1f} ms per frame)")
     return fps
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="目标检测验收测试")
+    parser = argparse.ArgumentParser(description="Object detection acceptance test")
     parser.add_argument("--weights", default="best.engine")
     parser.add_argument("--source", default="0")
-    parser.add_argument("--classes", nargs="+", required=False, help="类别名列表，顺序须与训练一致")
+    parser.add_argument("--classes", nargs="+", required=False, help="Class names in training order")
     parser.add_argument("--conf", type=float, default=0.5)
-    parser.add_argument("--iou", type=float, default=0.5, help="NMS IoU 阈值")
+    parser.add_argument("--iou", type=float, default=0.5, help="NMS IoU threshold")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
-    parser.add_argument("--trials", type=int, default=20, help="测试物体个数")
+    parser.add_argument("--trials", type=int, default=20, help="Number of test objects")
     parser.add_argument("--fps-only", action="store_true")
     args = parser.parse_args()
 
@@ -85,7 +87,7 @@ def main() -> None:
     names = list(args.classes) if args.classes else list(model.names.values())
     cap = open_camera(args.source, args.width, args.height)
     if not cap.isOpened():
-        raise SystemExit(f"无法打开摄像头: {args.source}")
+        raise SystemExit(f"Unable to open camera: {args.source}")
 
     OUT_DIR.mkdir(exist_ok=True)
     err_dir = OUT_DIR / "errors"
@@ -99,30 +101,30 @@ def main() -> None:
             )
             return
 
-        print("\n先做 FPS 基准测试...")
+        print("\nRunning FPS benchmark first...")
         fps = run_fps_benchmark(model, cap, args.imgsz, args.iou, n=100)
 
-        print("\n===== 逐物体测试 =====")
-        print(f"类别: {', '.join(f'{i}:{n}' for i, n in enumerate(names))}")
-        print("摆好物体后按 [空格] 抓拍判定，[q] 提前结束\n")
+        print("\n===== Per-object test =====")
+        print(f"Classes: {', '.join(f'{i}:{n}' for i, n in enumerate(names))}")
+        print("Place the object, then press [Space] to capture and evaluate; press [q] to stop early\n")
 
         records = []
         while len(records) < args.trials:
             idx = len(records) + 1
-            raw = input(f"[{idx}/{args.trials}] 真值类别（输名字或编号，q 结束）: ").strip()
+            raw = input(f"[{idx}/{args.trials}] Ground-truth class (name or index; q to quit): ").strip()
             if raw.lower() == "q":
                 break
             truth = names[int(raw)] if raw.isdigit() and int(raw) < len(names) else raw
             if truth not in names:
-                print(f"  未知类别，可选: {names}")
+                print(f"  Unknown class. Available classes: {names}")
                 continue
 
-            # 冲掉摄像头缓冲，确保拿到摆好之后的画面
+            # Flush the camera buffer to capture a frame after the object is positioned.
             frame = None
             for _ in range(5):
                 ok, frame = cap.read()
             if frame is None:
-                print("  抓帧失败")
+                print("  Failed to capture frame")
                 continue
 
             result = model.predict(
@@ -143,7 +145,7 @@ def main() -> None:
             correct = pred == truth
             records.append({"idx": idx, "truth": truth, "pred": pred,
                             "score": round(score, 3), "correct": int(correct)})
-            print(f"  预测: {pred} ({score:.2f})  ->  {'✅ 正确' if correct else '❌ 错误'}")
+            print(f"  Prediction: {pred} ({score:.2f})  ->  {'PASS' if correct else 'FAIL'}")
 
             annotated = result.plot()
             cv2.putText(annotated, f"GT: {truth} | PRED: {pred} {score:.2f}", (12, 32),
@@ -155,7 +157,7 @@ def main() -> None:
             cv2.waitKey(600)
 
         if not records:
-            print("没有任何测试记录")
+            print("No test records were collected")
             return
 
         n_correct = sum(r["correct"] for r in records)
@@ -192,17 +194,17 @@ def main() -> None:
             writer.writeheader()
             writer.writerows(records)
 
-        print("\n===== 验收结果 =====")
-        print(f"正确率 : {n_correct}/{len(records)} = {acc:.1%}   "
-              f"{'✅ 达标(≥80%)' if acc >= 0.8 else '❌ 未达标'}")
-        print(f"FPS    : {fps:.2f}   {'✅ 达标(≥5)' if fps >= 5 else '❌ 未达标'}")
+        print("\n===== Acceptance results =====")
+        print(f"Accuracy: {n_correct}/{len(records)} = {acc:.1%}   "
+              f"{'PASS (>=80%)' if acc >= 0.8 else 'FAIL'}")
+        print(f"FPS     : {fps:.2f}   {'PASS (>=5)' if fps >= 5 else 'FAIL'}")
         for cls, st in per_class.items():
             print(f"  {cls:10s} {st['correct']}/{st['total']}")
         if confusion:
-            print("典型错误:")
+            print("Representative errors:")
             for (t, p), c in confusion.most_common():
-                print(f"  {t} 被识别成 {p}  x{c}")
-        print(f"\n结果已保存到 {OUT_DIR}")
+                print(f"  {t} predicted as {p}  x{c}")
+        print(f"\nResults saved to {OUT_DIR}")
     finally:
         cap.release()
         cv2.destroyAllWindows()

@@ -1,9 +1,0 @@
-# YOLO 数据集配置。未指定 path 时，Ultralytics 以本文件所在目录为数据根。
-train: images/train
-val: images/val
-
-names:
-  0: cup
-  1: mouse
-  2: keyboard
-  3: bottle

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# 数据集上传 / 权重下载。走 SSH 公钥认证，不需要密码，也不在脚本里存密码。
+# Upload datasets and download weights using SSH public-key authentication; no password is required or stored in this script.
 #
-# 通过 REMOTE_HOST、REMOTE_PORT 指定训练服务器。
+# Specify the training server with REMOTE_HOST and REMOTE_PORT.
 #
-# 用法:
-#   ./sync.sh up          上传数据集 + 训练脚本到服务器
-#   ./sync.sh down        下载训练好的权重和曲线图
-#   ./sync.sh train       在服务器后台启动训练
-#   ./sync.sh log         查看训练日志
+# Usage:
+#   ./sync.sh up          Upload the dataset and training script to the server
+#   ./sync.sh down        Download trained weights and plots
+#   ./sync.sh train       Start training in the background on the server
+#   ./sync.sh log         View the training log
 set -euo pipefail
 
 HOST="${REMOTE_HOST:-}"
@@ -22,7 +22,7 @@ SSH=(ssh -p "$PORT" -o StrictHostKeyChecking=accept-new)
 RSYNC_RSH="ssh -p $PORT -o StrictHostKeyChecking=accept-new"
 
 if [[ -z "$HOST" ]]; then
-  echo "请先设置训练服务器，例如:"
+  echo "Configure the training server first, for example:"
   echo "  export REMOTE_HOST=user@server.example.com"
   echo "  export REMOTE_PORT=22"
   exit 1
@@ -30,37 +30,37 @@ fi
 
 case "${1:-}" in
   up)
-    "${SSH[@]}" "$HOST" "mkdir -p $REMOTE_DIR/02_数据集"
+    "${SSH[@]}" "$HOST" "mkdir -p $REMOTE_DIR/02_dataset"
     rsync -avz --delete --progress --exclude '.DS_Store' -e "$RSYNC_RSH" \
-      "$LOCAL_ROOT/02_数据集/images/" "$HOST:$REMOTE_DIR/02_数据集/images/"
+      "$LOCAL_ROOT/02_dataset/images/" "$HOST:$REMOTE_DIR/02_dataset/images/"
     rsync -avz --delete --progress --exclude '.DS_Store' -e "$RSYNC_RSH" \
-      "$LOCAL_ROOT/02_数据集/labels/" "$HOST:$REMOTE_DIR/02_数据集/labels/"
+      "$LOCAL_ROOT/02_dataset/labels/" "$HOST:$REMOTE_DIR/02_dataset/labels/"
     rsync -avz -e "$RSYNC_RSH" \
-      "$LOCAL_ROOT/02_数据集/data.yaml" "$HOST:$REMOTE_DIR/02_数据集/"
+      "$LOCAL_ROOT/02_dataset/data.yaml" "$HOST:$REMOTE_DIR/02_dataset/"
     rsync -avz -e "$RSYNC_RSH" \
-      "$LOCAL_ROOT/03_训练/train_yolo.py" "$HOST:$REMOTE_DIR/"
-    echo "上传完成"
+      "$LOCAL_ROOT/03_training/train_yolo.py" "$HOST:$REMOTE_DIR/"
+    echo "Upload complete"
     ;;
   train)
     "${SSH[@]}" "$HOST" "cd $REMOTE_DIR; nohup $REMOTE_PYTHON train_yolo.py \
-      --data $REMOTE_DIR/02_数据集/data.yaml --model $BASE_MODEL \
+      --data $REMOTE_DIR/02_dataset/data.yaml --model $BASE_MODEL \
       --name $RUN_NAME \
       > $LOG 2>&1 < /dev/null &"
-    echo "训练已在后台启动，用 ./sync.sh log 查看进度"
+    echo "Training started in the background. Run ./sync.sh log to view progress."
     ;;
   log)
     "${SSH[@]}" "$HOST" "tail -n 40 $LOG"
     ;;
   down)
-    mkdir -p "$LOCAL_ROOT/03_训练/weights"
+    mkdir -p "$LOCAL_ROOT/03_training/weights"
     rsync -avz -e "$RSYNC_RSH" \
       "$HOST:$REMOTE_DIR/runs/detect/$RUN_NAME/weights/best.pt" \
-      "$LOCAL_ROOT/03_训练/weights/"
+      "$LOCAL_ROOT/03_training/weights/"
     rsync -avz -e "$RSYNC_RSH" \
       "$HOST:$REMOTE_DIR/runs/detect/$RUN_NAME/" \
-      "$LOCAL_ROOT/03_训练/runs_$RUN_NAME/" \
+      "$LOCAL_ROOT/03_training/runs_$RUN_NAME/" \
       --exclude 'weights/*.pt'
-    echo "权重已下载到 03_训练/weights/best.pt"
+    echo "Weights downloaded to 03_training/weights/best.pt"
     ;;
   *)
     sed -n '2,20p' "${BASH_SOURCE[0]}"

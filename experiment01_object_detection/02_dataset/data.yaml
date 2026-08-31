@@ -1,0 +1,9 @@
+# YOLO dataset configuration. Without an explicit path, Ultralytics uses this file's directory as the dataset root.
+train: images/train
+val: images/val
+
+names:
+  0: cup
+  1: mouse
+  2: keyboard
+  3: bottle

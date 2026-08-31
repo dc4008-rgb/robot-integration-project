@@ -1,17 +1,17 @@
-"""把标注完成的图片+标签划分成 train/val，整理成 ultralytics 要求的目录结构。
+"""Split labeled image-label pairs into train/val sets for Ultralytics.
 
-标注完成后的输入布局（labelImg / X-AnyLabeling 导出 YOLO 格式）:
-    02_数据集/raw/xxx.jpg
-    02_数据集/raw/xxx.txt
+Input layout after labeling (YOLO format exported by labelImg / X-AnyLabeling):
+    <dataset-dir>/raw/xxx.jpg
+    <dataset-dir>/raw/xxx.txt
 
-输出:
-    02_数据集/images/train, images/val, labels/train, labels/val
+Output:
+    <dataset-dir>/images/train, images/val, labels/train, labels/val
 
-用法:
+Usage:
     python split_dataset.py --val-ratio 0.2
-    python split_dataset.py --raw-dir ../训练数据集 --val-ratio 0.2
-    python split_dataset.py --raw-dir ../训练数据集 --external-yolo-dir external_openimages_yolo
-    python split_dataset.py --raw-dir ../训练数据集 --negative-dir recollection/negative_train
+    python split_dataset.py --raw-dir ../path/to/training_dataset --val-ratio 0.2
+    python split_dataset.py --raw-dir ../path/to/training_dataset --external-yolo-dir external_openimages_yolo
+    python split_dataset.py --raw-dir ../path/to/training_dataset --negative-dir recollection/negative_train
 """
 import argparse
 import hashlib
@@ -31,31 +31,34 @@ EXPECTED_CLASSES = ["cup", "mouse", "keyboard", "bottle"]
 def collect_paired(root: Path, description: str):
     root = root.expanduser().resolve()
     if not root.is_dir():
-        raise SystemExit(f"{description}目录不存在: {root}")
+        raise SystemExit(f"{description} directory does not exist: {root}")
 
     images = sorted(path for path in root.iterdir() if path.suffix.lower() in IMG_EXTS)
     if not images:
-        raise SystemExit(f"{root} 里没有图片")
+        raise SystemExit(f"No images found in {root}")
 
     paired = [image for image in images if image.with_suffix(".txt").exists()]
     unlabeled = [image for image in images if not image.with_suffix(".txt").exists()]
     if unlabeled:
-        print(f"警告: {description}中 {len(unlabeled)} 张图没有对应 .txt 标签，已跳过")
+        print(
+            f"Warning: {len(unlabeled)} images in {description} have no matching "
+            ".txt label and were skipped"
+        )
         for path in unlabeled[:5]:
             print(f"  - {path.name}")
     if not paired:
-        raise SystemExit(f"{description}中没有任何已标注图片")
+        raise SystemExit(f"No labeled images found in {description}")
     return paired
 
 
 def collect_negatives(root: Path, description: str):
     root = root.expanduser().resolve()
     if not root.is_dir():
-        raise SystemExit(f"{description}目录不存在: {root}")
+        raise SystemExit(f"{description} directory does not exist: {root}")
 
     images = sorted(path for path in root.iterdir() if path.suffix.lower() in IMG_EXTS)
     if not images:
-        raise SystemExit(f"{root} 里没有图片")
+        raise SystemExit(f"No images found in {root}")
 
     labeled = [
         image for image in images
@@ -65,7 +68,8 @@ def collect_negatives(root: Path, description: str):
     if labeled:
         examples = ", ".join(path.name for path in labeled[:5])
         raise SystemExit(
-            f"{description}只能包含不含目标的纯负样本，发现非空标签: {examples}"
+            f"{description} must contain only pure negative samples with no target "
+            f"objects; found non-empty labels: {examples}"
         )
     return images
 
@@ -82,7 +86,10 @@ def reject_exact_overlap(train, val):
     ]
     if duplicates:
         examples = ", ".join(f"{train.name} / {val.name}" for train, val in duplicates[:3])
-        raise SystemExit(f"训练集与独立验证集存在相同图片: {examples}")
+        raise SystemExit(
+            f"Identical images found in the training and independent validation "
+            f"sets: {examples}"
+        )
 
 
 def reject_name_collisions(images):
@@ -95,7 +102,10 @@ def reject_name_collisions(images):
             seen[image.stem] = image
     if collisions:
         examples = ", ".join(f"{first} / {second}" for first, second in collisions[:3])
-        raise SystemExit(f"训练来源中存在同名图片，无法安全合并: {examples}")
+        raise SystemExit(
+            f"Images with duplicate basenames found across training sources; "
+            f"cannot merge safely: {examples}"
+        )
 
 
 def materialize(source: Path, destination: Path, hardlink: bool) -> None:
@@ -114,7 +124,8 @@ def validate_external_roots(roots):
         yaml_path = root / "dataset.yaml"
         if not images.is_dir() or not labels.is_dir() or not yaml_path.is_file():
             raise SystemExit(
-                f"外部数据集缺少 images/train、labels/train 或 dataset.yaml: {root}"
+                f"External dataset is missing images/train, labels/train, or "
+                f"dataset.yaml: {root}"
             )
 
         config = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
@@ -123,54 +134,69 @@ def validate_external_roots(roots):
             names = [value for _, value in sorted((int(key), value) for key, value in names.items())]
         if names != EXPECTED_CLASSES:
             raise SystemExit(
-                f"外部数据集类别顺序不匹配: {names}，应为 {EXPECTED_CLASSES}"
+                f"External dataset class order does not match: {names}; "
+                f"expected {EXPECTED_CLASSES}"
             )
         validated.append((root, images, labels))
     return validated
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="划分 YOLO 数据集")
-    parser.add_argument("--raw-dir", type=Path, default=RAW, help="图片和标签所在目录")
+    parser = argparse.ArgumentParser(description="Split a YOLO dataset")
+    parser.add_argument(
+        "--raw-dir", type=Path, default=RAW,
+        help="Directory containing images and labels",
+    )
     parser.add_argument(
         "--train-extra-dir", type=Path, action="append", default=[],
-        help="追加的本地训练图片与标签目录，可重复指定",
+        help="Additional local training image and label directory; may be repeated",
     )
     parser.add_argument(
         "--negative-dir", type=Path, action="append", default=[],
-        help="不含四类目标的纯负样本图片目录，可重复指定；仅加入训练集并生成空标签",
+        help=(
+            "Pure-negative image directory containing none of the four target "
+            "classes; may be repeated; added only to training with empty labels"
+        ),
     )
     parser.add_argument(
         "--val-dir", type=Path,
-        help="独立拍摄并标注的验证目录；指定后 raw-dir 中的图片全部用于训练",
+        help=(
+            "Independently captured and labeled validation directory; when set, "
+            "all images in raw-dir are used for training"
+        ),
     )
     parser.add_argument(
         "--external-yolo-dir",
         type=Path,
         action="append",
         default=[],
-        help="额外 YOLO 数据集根目录，可重复指定；只加入训练集",
+        help="Additional YOLO dataset root; may be repeated; added only to training",
     )
     parser.add_argument("--val-ratio", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--train-hardlink", action="store_true",
-        help="训练集使用同卷硬链接以节省本地空间；验证集仍复制",
+        help=(
+            "Use same-volume hard links for the training set to save local space; "
+            "the validation set is still copied"
+        ),
     )
     args = parser.parse_args()
 
-    paired = collect_paired(args.raw_dir, "主训练来源")
+    paired = collect_paired(args.raw_dir, "primary training source")
     for index, train_dir in enumerate(args.train_extra_dir, start=1):
-        paired.extend(collect_paired(train_dir, f"追加训练来源 {index}"))
+        paired.extend(collect_paired(train_dir, f"additional training source {index}"))
     negatives = []
     for index, negative_dir in enumerate(args.negative_dir, start=1):
-        negatives.extend(collect_negatives(negative_dir, f"纯负样本来源 {index}"))
+        negatives.extend(
+            collect_negatives(negative_dir, f"pure-negative source {index}")
+        )
     reject_name_collisions(paired + negatives)
 
     external_roots = validate_external_roots(args.external_yolo_dir)
 
     if args.val_dir:
-        val = collect_paired(args.val_dir, "独立验证集")
+        val = collect_paired(args.val_dir, "independent validation set")
         reject_exact_overlap(paired + negatives, val)
         splits = {"val": val, "train": list(paired)}
     else:
@@ -198,7 +224,10 @@ def main() -> None:
         remaining = [image for image in paired if image not in val]
         val.extend(remaining[: n_val - len(val)])
         if uncovered:
-            print(f"警告: 验证集容量不足，未覆盖类别 {sorted(uncovered)}")
+            print(
+                f"Warning: The validation set is too small to cover classes "
+                f"{sorted(uncovered)}"
+            )
         splits = {"val": val, "train": [image for image in paired if image not in val]}
 
     splits["train"].extend(negatives)
@@ -235,7 +264,9 @@ def main() -> None:
         ):
             label = external_labels / f"{image.stem}.txt"
             if not label.exists():
-                print(f"警告: 外部图片 {image.name} 没有标签，已跳过")
+                print(
+                    f"Warning: External image {image.name} has no label and was skipped"
+                )
                 continue
             output_stem = f"external{source_index}_{image.stem}"
             materialize(
@@ -248,16 +279,16 @@ def main() -> None:
             )
             external_count += 1
 
-    print(f"val: {len(splits['val'])} 张（仅本地数据）")
+    print(f"val: {len(splits['val'])} images (local data only)")
     print(
-        f"train: {len(splits['train']) + external_count} 张"
-        f"（本地有目标 {len(splits['train']) - len(negatives)}"
-        f" + 纯负样本 {len(negatives)} + 外部 {external_count}）"
+        f"train: {len(splits['train']) + external_count} images"
+        f" (local images with targets {len(splits['train']) - len(negatives)}"
+        f" + pure negatives {len(negatives)} + external {external_count})"
     )
 
     print(
-        f"完成，本地有目标 {len(paired)} 张，纯负样本 {len(negatives)} 张，"
-        f"外部 {external_count} 张"
+        f"Done: {len(paired)} local images with targets, "
+        f"{len(negatives)} pure negatives, and {external_count} external images"
     )
 
 

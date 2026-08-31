@@ -1,10 +1,10 @@
-"""Jetson 上的实时检测节点：浏览器/本地窗口显示 + ROS2 发布检测结果。
+"""Real-time detection node for Jetson with browser/local display and ROS 2 publishing.
 
-发布话题:
-    /detections        vision_msgs/Detection2DArray   类别 id、置信度、检测框
-    /detection_image   sensor_msgs/Image              画好框的图像（可在 rviz2 里看）
+Published topics:
+    /detections        vision_msgs/Detection2DArray   Class IDs, confidence scores, and bounding boxes
+    /detection_image   sensor_msgs/Image              Annotated image (viewable in RViz 2)
 
-用法:
+Usage:
     python3 yolo_ros2_node.py --weights best.engine --source 0
     python3 yolo_ros2_node.py --weights best.pt --source 0 --no-display --web-port 8080
 """
@@ -33,7 +33,7 @@ from vision_msgs.msg import (
 COLORS = [(0, 255, 0), (255, 128, 0), (0, 128, 255), (255, 0, 255), (0, 255, 255)]
 
 VIEWER_HTML = b"""<!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -177,7 +177,7 @@ class YoloDetectorNode(Node):
         self.det_pub = self.create_publisher(Detection2DArray, "/detections", 10)
         self.img_pub = self.create_publisher(Image, "/detection_image", 10)
 
-        self.get_logger().info(f"加载模型: {args.weights}")
+        self.get_logger().info(f"Loading model: {args.weights}")
         self.model = YOLO(args.weights)
         self.names = self.model.names
 
@@ -188,7 +188,8 @@ class YoloDetectorNode(Node):
         else:
             src = int(args.source) if args.source.isdigit() else args.source
             self.cap = cv2.VideoCapture(src)
-            # UVC 摄像头默认 YUYV 未压缩，720p 下只能给 5~10 FPS，必须先切 MJPG 再设分辨率
+            # UVC cameras default to uncompressed YUYV, which provides only 5-10 FPS at 720p.
+            # Switch to MJPG before setting the resolution.
             self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
@@ -196,11 +197,11 @@ class YoloDetectorNode(Node):
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             self.configure_uvc_camera(args, src)
         if not self.cap.isOpened():
-            raise SystemExit(f"无法打开摄像头: {args.source}")
+            raise SystemExit(f"Unable to open camera: {args.source}")
         fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
         fourcc_name = "".join(chr((fourcc >> (8 * index)) & 0xFF) for index in range(4))
         self.get_logger().info(
-            f"摄像头就绪: {int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x"
+            f"Camera ready: {int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x"
             f"{int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))} "
             f"{fourcc_name} {self.cap.get(cv2.CAP_PROP_FPS):.1f} FPS"
         )
@@ -211,13 +212,13 @@ class YoloDetectorNode(Node):
             self.writer = cv2.VideoWriter(
                 args.save_video, fourcc, 15.0, (args.width, args.height)
             )
-            self.get_logger().info(f"录制到: {args.save_video}")
+            self.get_logger().info(f"Recording to: {args.save_video}")
 
         self.frame_times: deque = deque(maxlen=30)
         self.last_frame_time = None
         self.web = MjpegServer(args.web_port, args.jpeg_quality) if args.web_port else None
         if self.web is not None:
-            self.get_logger().info(f"浏览器实时画面: http://0.0.0.0:{args.web_port}")
+            self.get_logger().info(f"Live browser stream: http://0.0.0.0:{args.web_port}")
         self.timer = self.create_timer(1.0 / args.fps, self.tick)
 
     def configure_uvc_camera(self, args: argparse.Namespace, source) -> None:
@@ -255,35 +256,35 @@ class YoloDetectorNode(Node):
                 )
                 if result.returncode:
                     message = result.stderr.strip() or result.stdout.strip()
-                    self.get_logger().warning(f"摄像头不接受{name}设置: {message}")
+                    self.get_logger().warning(f"Camera rejected {name} setting: {message}")
                 else:
-                    self.get_logger().info(f"{name}: 已设置为 {value:g}")
+                    self.get_logger().info(f"{name}: set to {value:g}")
             return
 
         settings = [
-            (cv2.CAP_PROP_AUTO_EXPOSURE, args.auto_exposure, "自动曝光"),
-            (cv2.CAP_PROP_EXPOSURE, args.exposure, "曝光"),
-            (cv2.CAP_PROP_GAIN, args.gain, "增益"),
-            (cv2.CAP_PROP_BACKLIGHT, args.backlight_compensation, "背光补偿"),
+            (cv2.CAP_PROP_AUTO_EXPOSURE, args.auto_exposure, "auto exposure"),
+            (cv2.CAP_PROP_EXPOSURE, args.exposure, "exposure"),
+            (cv2.CAP_PROP_GAIN, args.gain, "gain"),
+            (cv2.CAP_PROP_BACKLIGHT, args.backlight_compensation, "backlight compensation"),
             (cv2.CAP_PROP_GAMMA, args.gamma, "Gamma"),
-            (cv2.CAP_PROP_AUTO_WB, args.auto_white_balance, "自动白平衡"),
-            (cv2.CAP_PROP_WB_TEMPERATURE, args.white_balance, "白平衡色温"),
+            (cv2.CAP_PROP_AUTO_WB, args.auto_white_balance, "automatic white balance"),
+            (cv2.CAP_PROP_WB_TEMPERATURE, args.white_balance, "white-balance color temperature"),
         ]
         for property_id, value, name in settings:
             if value is None:
                 continue
             if not self.cap.set(property_id, value):
-                self.get_logger().warning(f"摄像头不接受{name}设置: {value}")
+                self.get_logger().warning(f"Camera rejected {name} setting: {value}")
                 continue
             actual = self.cap.get(property_id)
-            self.get_logger().info(f"{name}: 请求 {value:g}，读取 {actual:g}")
+            self.get_logger().info(f"{name}: requested {value:g}, read back {actual:g}")
 
     def tick(self) -> None:
         capture_start = time.perf_counter()
         ok, frame = self.cap.read()
         capture_ms = (time.perf_counter() - capture_start) * 1000
         if not ok:
-            self.get_logger().warning("读取帧失败")
+            self.get_logger().warning("Failed to read frame")
             return
         raw_frame = frame.copy()
 
@@ -402,42 +403,42 @@ class YoloDetectorNode(Node):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="YOLO 实时检测 + ROS2 发布")
+    parser = argparse.ArgumentParser(description="Real-time YOLO detection with ROS 2 publishing")
     parser.add_argument("--weights", default="best.engine")
-    parser.add_argument("--source", default="0", help="摄像头编号、视频路径，或 csi")
+    parser.add_argument("--source", default="0", help="Camera index, video path, or csi")
     parser.add_argument("--conf", type=float, default=0.5)
-    parser.add_argument("--iou", type=float, default=0.5, help="NMS IoU 阈值")
+    parser.add_argument("--iou", type=float, default=0.5, help="NMS IoU threshold")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
-    parser.add_argument("--fps", type=int, default=15, help="目标帧率（定时器频率）")
-    parser.add_argument("--camera-fps", type=int, default=30, help="UVC 摄像头采集帧率")
+    parser.add_argument("--fps", type=int, default=15, help="Target frame rate (timer frequency)")
+    parser.add_argument("--camera-fps", type=int, default=30, help="UVC camera capture frame rate")
     parser.add_argument(
         "--fixed-camera-fps", action="store_true",
-        help="关闭UVC自动曝光的动态降帧，避免暗场帧率下降",
+        help="Disable dynamic frame-rate reduction by UVC auto-exposure to prevent FPS drops in low light",
     )
     parser.add_argument(
         "--auto-exposure", type=float,
-        help="自动曝光值；V4L2 通常 0.75/3=自动、0.25/1=手动",
+        help="Auto-exposure value; V4L2 typically uses 0.75/3 for auto and 0.25/1 for manual",
     )
-    parser.add_argument("--exposure", type=float, help="手动曝光值，范围取决于摄像头")
-    parser.add_argument("--gain", type=float, help="手动增益值，范围取决于摄像头")
-    parser.add_argument("--backlight-compensation", type=float, help="背光补偿值")
-    parser.add_argument("--gamma", type=float, help="Gamma值，用于调整中间调亮度")
+    parser.add_argument("--exposure", type=float, help="Manual exposure value; range depends on the camera")
+    parser.add_argument("--gain", type=float, help="Manual gain value; range depends on the camera")
+    parser.add_argument("--backlight-compensation", type=float, help="Backlight compensation value")
+    parser.add_argument("--gamma", type=float, help="Gamma value for adjusting midtone brightness")
     parser.add_argument(
         "--auto-white-balance", type=float, choices=(0.0, 1.0),
-        help="关闭/开启自动白平衡",
+        help="Disable or enable automatic white balance",
     )
-    parser.add_argument("--white-balance", type=float, help="手动白平衡色温")
+    parser.add_argument("--white-balance", type=float, help="Manual white-balance color temperature")
     parser.add_argument(
         "--quality-metrics", action="store_true",
-        help="计算并显示高光剪切率与清晰度（诊断时开启）",
+        help="Calculate and display highlight clipping and sharpness metrics (enable for diagnostics)",
     )
     parser.add_argument("--frame_id", default="camera_link")
-    parser.add_argument("--no-display", action="store_true", help="无显示器时使用")
-    parser.add_argument("--web-port", type=int, default=0, help=">0 时开启浏览器实时画面")
+    parser.add_argument("--no-display", action="store_true", help="Use when no display is available")
+    parser.add_argument("--web-port", type=int, default=0, help="Enable the live browser stream when > 0")
     parser.add_argument("--jpeg-quality", type=int, default=80, choices=range(30, 96))
-    parser.add_argument("--save-video", default="", help="录制结果视频的输出路径")
+    parser.add_argument("--save-video", default="", help="Output path for the recorded result video")
     args = parser.parse_args()
 
     rclpy.init()
