@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 数据集上传 / 权重下载。走 SSH 公钥认证，不需要密码，也不在脚本里存密码。
 #
-# 默认连接当前训练实例，也可用 REMOTE_HOST、REMOTE_PORT 覆盖。
+# 通过 REMOTE_HOST、REMOTE_PORT 指定训练服务器。
 #
 # 用法:
 #   ./sync.sh up          上传数据集 + 训练脚本到服务器
@@ -10,15 +10,23 @@
 #   ./sync.sh log         查看训练日志
 set -euo pipefail
 
-HOST="${REMOTE_HOST:-root@connect.westd.seetacloud.com}"
-PORT="${REMOTE_PORT:-18507}"
-REMOTE_DIR="${REMOTE_DIR:-/root/autodl-tmp/robot_det}"
-REMOTE_PYTHON="${REMOTE_PYTHON:-/root/miniconda3/bin/python}"
+HOST="${REMOTE_HOST:-}"
+PORT="${REMOTE_PORT:-22}"
+REMOTE_DIR="${REMOTE_DIR:-~/robot_det}"
+REMOTE_PYTHON="${REMOTE_PYTHON:-python3}"
+BASE_MODEL="${BASE_MODEL:-yolov8n.pt}"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_NAME="${RUN_NAME:-desktop_det}"
-LOG="/root/train_${RUN_NAME}.log"
+LOG="${REMOTE_LOG:-$REMOTE_DIR/train_${RUN_NAME}.log}"
 SSH=(ssh -p "$PORT" -o StrictHostKeyChecking=accept-new)
 RSYNC_RSH="ssh -p $PORT -o StrictHostKeyChecking=accept-new"
+
+if [[ -z "$HOST" ]]; then
+  echo "请先设置训练服务器，例如:"
+  echo "  export REMOTE_HOST=user@server.example.com"
+  echo "  export REMOTE_PORT=22"
+  exit 1
+fi
 
 case "${1:-}" in
   up)
@@ -30,13 +38,12 @@ case "${1:-}" in
     rsync -avz -e "$RSYNC_RSH" \
       "$LOCAL_ROOT/02_数据集/data.yaml" "$HOST:$REMOTE_DIR/02_数据集/"
     rsync -avz -e "$RSYNC_RSH" \
-      "$LOCAL_ROOT/03_训练/train_yolo.py" \
-      "$LOCAL_ROOT/03_训练/yolov8n.pt" "$HOST:$REMOTE_DIR/"
+      "$LOCAL_ROOT/03_训练/train_yolo.py" "$HOST:$REMOTE_DIR/"
     echo "上传完成"
     ;;
   train)
     "${SSH[@]}" "$HOST" "cd $REMOTE_DIR; nohup $REMOTE_PYTHON train_yolo.py \
-      --data $REMOTE_DIR/02_数据集/data.yaml --model $REMOTE_DIR/yolov8n.pt \
+      --data $REMOTE_DIR/02_数据集/data.yaml --model $BASE_MODEL \
       --name $RUN_NAME \
       > $LOG 2>&1 < /dev/null &"
     echo "训练已在后台启动，用 ./sync.sh log 查看进度"
