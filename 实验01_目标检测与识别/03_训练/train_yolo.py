@@ -21,6 +21,8 @@ def main() -> None:
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--device", default="0")
     parser.add_argument("--name", default="desktop_det")
+    parser.add_argument("--patience", type=int, default=30)
+    parser.add_argument("--save-period", type=int, default=-1)
     args = parser.parse_args()
 
     data_path = Path(args.data).resolve()
@@ -34,7 +36,8 @@ def main() -> None:
         batch=args.batch,
         device=args.device,
         name=args.name,
-        patience=30,
+        patience=args.patience,
+        save_period=args.save_period,
         # 桌面物体常见的光照/角度变化，靠这几项增强覆盖
         hsv_h=0.015, hsv_s=0.7, hsv_v=0.4,
         degrees=10.0, translate=0.1, scale=0.5, fliplr=0.5,

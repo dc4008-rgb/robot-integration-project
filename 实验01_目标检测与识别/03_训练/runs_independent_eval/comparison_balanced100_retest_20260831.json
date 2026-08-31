@@ -1,0 +1,118 @@
+{
+  "date": "2026-08-31",
+  "server": {
+    "endpoint": "root@connect.westd.seetacloud.com:18507",
+    "gpu": "NVIDIA GeForce RTX 5090 32GB",
+    "python": "3.12.3",
+    "torch": "2.8.0+cu128",
+    "ultralytics": "8.4.128"
+  },
+  "dataset": {
+    "config": "02_数据集/data_balanced100_retest_20260831.yaml",
+    "train_images": 709,
+    "train_boxes": 1155,
+    "train_empty_labels": 44,
+    "validation_images": 24,
+    "validation_boxes": 73,
+    "base_dataset_content_manifest_sha256": "99460b290f4cca96d3eb5bf3b2bffc678a4ea3cff120999abc556a00efde4481",
+    "retest_files_manifest_sha256": "d76b253a4bb3fb61c16da9436085a1964da8123c7d468bcacfeea841ef1857c4",
+    "retest_samples": {
+      "gray_thermos_positive_images": 12,
+      "headphones_case_negative_images": 5,
+      "bottle_boxes": 12,
+      "empty_labels": 5,
+      "exif_orientation_normalized": true
+    }
+  },
+  "isolation_checks": {
+    "exact_validation_overlap": 0,
+    "nearest_validation_phash_distance": 18,
+    "exact_targeted_regression_overlap": 0,
+    "nearest_phash_distance": {
+      "pure_negative": 20,
+      "headphones_sequence": 19,
+      "mixed_keyboard": 27,
+      "gray_thermos": 27
+    },
+    "targeted_regression_assets_manifest_sha256": "e9a23f3bb6dd53e76c67a52e4eb633f589c7dd8dea08738b502dcd59ea64532a"
+  },
+  "training": {
+    "run_name": "desktop_det_balanced100_retest_finetune_20260831",
+    "initial_weights": "best_desktop_det_bidirectional_finetune_20260829.pt",
+    "initial_weights_sha256": "1c734e9738a11353f9cd7467cdf5694892408578bb0312f291c5fc2e31f33ed2",
+    "epochs_completed": 57,
+    "best_epoch": 27,
+    "early_stopping_patience": 30,
+    "batch": 32,
+    "image_size": 640,
+    "best_weights_sha256": "1e2e90c72c138aa2dc5ff7a6615bdbf5be5009fe86ae408c0c3ee43558cf1455",
+    "last_weights_sha256": "a2913ed2122ccfda553d0844edc56bbc4d34639ac23ac706689a5b6769ab5228",
+    "best_validation": {
+      "precision": 0.558,
+      "recall": 0.469,
+      "map50": 0.5236,
+      "map50_95": 0.3797,
+      "ap50": {
+        "cup": 0.3842,
+        "mouse": 0.7240,
+        "keyboard": 0.4888,
+        "bottle": 0.4973
+      }
+    }
+  },
+  "targeted_regression": {
+    "protocol": "one image at a time, imgsz=640, conf=0.25, NMS IoU=0.5; gray thermos candidates also inspected at conf=0.01",
+    "baseline": {
+      "pure_negative_false_positive_images": 0,
+      "headphones_mouse_false_positive_frames": 12,
+      "gray_thermos_bottle_confidence": 0.128923,
+      "mixed_keyboard_only": true
+    },
+    "best": {
+      "pure_negative_false_positive_images": 8,
+      "headphones_mouse_false_positive_frames": 7,
+      "gray_thermos_bottle_confidence": 0.457845,
+      "mixed_keyboard_confidence": 0.699636,
+      "mixed_keyboard_only": true
+    },
+    "last": {
+      "pure_negative_false_positive_images": 7,
+      "headphones_mouse_false_positive_frames": 10,
+      "gray_thermos_bottle_confidence": 0.663715,
+      "mixed_keyboard_confidence": 0.915089,
+      "mixed_keyboard_only": true
+    },
+    "complete_checkpoint_screening": {
+      "model_files_evaluated": 60,
+      "unique_tensor_states": 58,
+      "training_epochs_covered": 57,
+      "fixed_confidence_strict_pass_count": 0,
+      "shared_threshold_at_or_above_0_25_feasible_count": 0,
+      "minimum_new_model_pure_negative_false_positive_images": 2,
+      "minimum_new_model_headphones_mouse_false_positive_frames": 1,
+      "gray_thermos_gate_pass_count": 37,
+      "mixed_keyboard_only_pass_count": 37
+    }
+  },
+  "training_sample_sanity_check": {
+    "independent_evaluation": false,
+    "baseline": {
+      "gray_thermos_bottle_images": "9/12",
+      "headphones_case_false_positive_images": "0/5"
+    },
+    "best": {
+      "gray_thermos_bottle_images": "12/12",
+      "headphones_case_false_positive_images": "2/5"
+    },
+    "last": {
+      "gray_thermos_bottle_images": "12/12",
+      "headphones_case_false_positive_images": "1/5"
+    }
+  },
+  "decision": {
+    "deploy_new_model": false,
+    "keep_existing_candidate": true,
+    "reason": "The added thermos positives improved the independent gray-thermos confidence, but no epoch preserved the independent pure-negative gate and removed headphones-to-mouse false positives. The five added headphones-case images were already 0/5 false positives for the starting model, so they did not represent its remaining hard-negative failure mode.",
+    "next_action": "Collect diverse headphones/headphones-case hard negatives from the Jetson camera where the starting model actually predicts mouse at conf=0.25, split by capture episode, and preserve a separate unseen episode for regression testing."
+  }
+}

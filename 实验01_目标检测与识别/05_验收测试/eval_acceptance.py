@@ -42,12 +42,14 @@ def open_camera(source: str, width: int, height: int) -> cv2.VideoCapture:
     return cap
 
 
-def run_fps_benchmark(model: YOLO, cap: cv2.VideoCapture, imgsz: int, n: int = 200) -> float:
+def run_fps_benchmark(
+    model: YOLO, cap: cv2.VideoCapture, imgsz: int, iou: float, n: int = 200
+) -> float:
     """预热 20 帧后统计纯推理耗时，避免首帧 CUDA 初始化拉低数字。"""
     for _ in range(20):
         ok, frame = cap.read()
         if ok:
-            model.predict(frame, imgsz=imgsz, verbose=False)
+            model.predict(frame, imgsz=imgsz, iou=iou, verbose=False)
 
     times = []
     for i in range(n):
@@ -55,7 +57,7 @@ def run_fps_benchmark(model: YOLO, cap: cv2.VideoCapture, imgsz: int, n: int = 2
         if not ok:
             break
         t0 = time.time()
-        model.predict(frame, imgsz=imgsz, verbose=False)
+        model.predict(frame, imgsz=imgsz, iou=iou, verbose=False)
         times.append(time.time() - t0)
         if (i + 1) % 50 == 0:
             print(f"  {i + 1}/{n} 帧...")
@@ -71,6 +73,7 @@ def main() -> None:
     parser.add_argument("--source", default="0")
     parser.add_argument("--classes", nargs="+", required=False, help="类别名列表，顺序须与训练一致")
     parser.add_argument("--conf", type=float, default=0.5)
+    parser.add_argument("--iou", type=float, default=0.5, help="NMS IoU 阈值")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
@@ -90,14 +93,14 @@ def main() -> None:
 
     try:
         if args.fps_only:
-            fps = run_fps_benchmark(model, cap, args.imgsz)
+            fps = run_fps_benchmark(model, cap, args.imgsz, args.iou)
             (OUT_DIR / "fps_benchmark.json").write_text(
                 json.dumps({"fps": round(fps, 2), "time": datetime.now().isoformat()}, indent=2)
             )
             return
 
         print("\n先做 FPS 基准测试...")
-        fps = run_fps_benchmark(model, cap, args.imgsz, n=100)
+        fps = run_fps_benchmark(model, cap, args.imgsz, args.iou, n=100)
 
         print("\n===== 逐物体测试 =====")
         print(f"类别: {', '.join(f'{i}:{n}' for i, n in enumerate(names))}")
@@ -122,7 +125,13 @@ def main() -> None:
                 print("  抓帧失败")
                 continue
 
-            result = model.predict(frame, conf=args.conf, imgsz=args.imgsz, verbose=False)[0]
+            result = model.predict(
+                frame,
+                conf=args.conf,
+                iou=args.iou,
+                imgsz=args.imgsz,
+                verbose=False,
+            )[0]
             boxes = sorted(result.boxes, key=lambda b: float(b.conf[0]), reverse=True)
             if boxes:
                 top = boxes[0]
@@ -164,6 +173,7 @@ def main() -> None:
             "time": datetime.now().isoformat(timespec="seconds"),
             "weights": args.weights,
             "conf_threshold": args.conf,
+            "nms_iou_threshold": args.iou,
             "total": len(records),
             "correct": n_correct,
             "accuracy": round(acc, 4),

@@ -1,0 +1,32 @@
+{
+  "model": "best_recollection.pt",
+  "model_sha256": "b8dc30ef0b3dc008cbae6ab7ad08182c4232fefbd802215912639ce88077a520",
+  "scene": "two physical mice plus one headphones device, fixed camera",
+  "ground_truth": {
+    "mouse": 2,
+    "headphones": 1
+  },
+  "duration_seconds": 5,
+  "ros_messages": 77,
+  "mouse_frames": 77,
+  "mouse_detections_per_frame": {
+    "2": 14,
+    "3": 63
+  },
+  "mouse_detections_total": 217,
+  "mouse_score_min": 0.500,
+  "mouse_score_mean": 0.775,
+  "mouse_score_max": 0.915,
+  "fps": 15.0,
+  "capture_ms": 7.0,
+  "inference_ms": 28.6,
+  "clipped_percent": 8.36,
+  "sharpness": 1223.0,
+  "correction": {
+    "reason": "The headphones device was initially mistaken for a third physical mouse during manual review.",
+    "archived_frame_true_positive_mice": 2,
+    "archived_frame_false_positive_headphones_as_mouse": 1,
+    "interpretation": "Raw mouse-class box counts do not represent true positives for this scene. Per-frame TP/FP counts were not retained."
+  },
+  "formal_acceptance": false
+}

@@ -1,0 +1,19 @@
+{
+  "date": "2026-08-29",
+  "image": "phone_false_positive_as_bottle.jpg",
+  "ground_truth": {
+    "phone": 1,
+    "bottle": 0
+  },
+  "observed_false_positive": {
+    "predicted_class": "bottle",
+    "confidence_from_adjacent_ros_message": 0.6608,
+    "bbox_center": [306.07, 405.36],
+    "bbox_size": [428.07, 408.68]
+  },
+  "runtime": {
+    "fps": 15.0,
+    "model": "best_recollection.pt"
+  },
+  "note": "The deployed model was trained before four incorrect mouse labels were removed and before hard-negative examples were added."
+}

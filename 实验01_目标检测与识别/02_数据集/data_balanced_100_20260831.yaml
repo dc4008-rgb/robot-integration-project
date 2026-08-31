@@ -1,0 +1,11 @@
+# 本轮训练同时读取既有实拍/负样本快照与人工复核后的 Open Images 样本。
+train:
+  - images/train
+  - external_openimages_balanced_100_yolo/images/train
+val: images/val
+
+names:
+  0: cup
+  1: mouse
+  2: keyboard
+  3: bottle

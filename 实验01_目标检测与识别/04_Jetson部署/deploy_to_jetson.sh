@@ -8,6 +8,7 @@
 #   ./deploy_to_jetson.sh push      同步代码到板子（不含数据集和权重）
 #   ./deploy_to_jetson.sh model best.pt   单独推送训练好的权重
 #   ./deploy_to_jetson.sh check     检查板子上的环境是否齐全
+#   ./deploy_to_jetson.sh pull-data [train|val|all]  拉回补采数据（默认 val）
 #   ./deploy_to_jetson.sh pull      把板子上的测试结果和视频拉回来
 set -euo pipefail
 
@@ -25,7 +26,11 @@ case "${1:-}" in
   push)
     rsync -avz --progress \
       --exclude '02_数据集/raw/' --exclude '02_数据集/images/' \
-      --exclude '02_数据集/labels/' --exclude '03_训练/runs_*' \
+      --exclude '02_数据集/labels/' --exclude '02_数据集/recollection/' \
+      --exclude '02_数据集/external_openimages_yolo/' \
+      --exclude '02_数据集/.fiftyone_openimages_cache/' \
+      --exclude '训练数据集/' \
+      --exclude '03_训练/runs_*' \
       --exclude '__pycache__/' --exclude '.DS_Store' --exclude '.git/' \
       --exclude '*.pt' --exclude '*.engine' \
       "$LOCAL_ROOT/" "$HOST:$REMOTE_DIR/"
@@ -62,6 +67,26 @@ echo
 echo "===== ROS2 ====="
 ls /opt/ros/ 2>/dev/null || echo "  未安装 ROS2"
 EOF
+    ;;
+  pull-data)
+    scope="${2:-val}"
+    case "$scope" in
+      train|val)
+        mkdir -p "$LOCAL_ROOT/02_数据集/recollection/$scope"
+        rsync -avz --progress "$HOST:$REMOTE_DIR/02_数据集/recollection/$scope/" \
+          "$LOCAL_ROOT/02_数据集/recollection/$scope/"
+        ;;
+      all)
+        mkdir -p "$LOCAL_ROOT/02_数据集/recollection"
+        rsync -avz --progress "$HOST:$REMOTE_DIR/02_数据集/recollection/" \
+          "$LOCAL_ROOT/02_数据集/recollection/"
+        ;;
+      *)
+        echo "未知数据范围: ${scope}；可选 train、val、all"
+        exit 1
+        ;;
+    esac
+    echo "$scope 补采数据已拉回 $LOCAL_ROOT/02_数据集/recollection"
     ;;
   pull)
     mkdir -p "$LOCAL_ROOT/05_验收测试/results"

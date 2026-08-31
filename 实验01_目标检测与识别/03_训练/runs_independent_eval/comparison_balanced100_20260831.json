@@ -1,0 +1,105 @@
+{
+  "date": "2026-08-31",
+  "server": {
+    "endpoint": "root@connect.westd.seetacloud.com:18507",
+    "gpu": "NVIDIA GeForce RTX 5090 32GB",
+    "python": "3.12.3",
+    "torch": "2.8.0+cu128",
+    "ultralytics": "8.4.128"
+  },
+  "dataset": {
+    "config": "02_数据集/data_balanced_100_20260831.yaml",
+    "train_images": 692,
+    "train_boxes": 1143,
+    "train_empty_labels": 39,
+    "validation_images": 24,
+    "validation_boxes": 73,
+    "content_manifest_sha256": "99460b290f4cca96d3eb5bf3b2bffc678a4ea3cff120999abc556a00efde4481"
+  },
+  "baseline_candidate": {
+    "file": "best_desktop_det_bidirectional_finetune_20260829.pt",
+    "sha256": "1c734e9738a11353f9cd7467cdf5694892408578bb0312f291c5fc2e31f33ed2",
+    "validation": {
+      "map50": 0.4374,
+      "map50_95": 0.3283
+    },
+    "targeted_regression": {
+      "pure_negative_false_positive_images": 0,
+      "headphones_mouse_false_positive_frames": 12,
+      "headphones_sequence_frames": 20,
+      "gray_thermos_bottle_confidence": 0.128923
+    }
+  },
+  "runs": {
+    "balanced100_finetune": {
+      "initial_weights_sha256": "1c734e9738a11353f9cd7467cdf5694892408578bb0312f291c5fc2e31f33ed2",
+      "epochs_completed": 61,
+      "best_epoch": 31,
+      "best_weights_sha256": "98d03f42eaf0cb622ea968e5678cd03f3a7e0239649bfa43ffe01521458ff5b9",
+      "validation": {
+        "precision": 0.787,
+        "recall": 0.524,
+        "map50": 0.5993,
+        "map50_95": 0.4430,
+        "ap50": {
+          "cup": 0.6595,
+          "mouse": 0.7022,
+          "keyboard": 0.5943,
+          "bottle": 0.4413
+        }
+      },
+      "targeted_regression_best": {
+        "pure_negative_false_positive_images": 11,
+        "headphones_mouse_false_positive_frames": 10,
+        "gray_thermos_bottle_confidence": 0.070298
+      },
+      "targeted_regression_last": {
+        "pure_negative_false_positive_images": 4,
+        "headphones_mouse_false_positive_frames": 1,
+        "gray_thermos_bottle_confidence": 0.0
+      }
+    },
+    "balanced100_from_recollection": {
+      "initial_weights_sha256": "b8dc30ef0b3dc008cbae6ab7ad08182c4232fefbd802215912639ce88077a520",
+      "epochs_completed": 69,
+      "best_epoch": 39,
+      "best_weights_sha256": "57cd5f6ca3113934388b0ff7ecaf3100b1f3ce58eadbd6e064410ec35eb4cc4b",
+      "validation": {
+        "precision": 0.724,
+        "recall": 0.477,
+        "map50": 0.5582,
+        "map50_95": 0.3719,
+        "ap50": {
+          "cup": 0.5714,
+          "mouse": 0.6922,
+          "keyboard": 0.6364,
+          "bottle": 0.3325
+        }
+      },
+      "targeted_regression_best": {
+        "pure_negative_false_positive_images": 13,
+        "headphones_mouse_false_positive_frames": 9,
+        "gray_thermos_bottle_confidence": 0.443351
+      },
+      "checkpoint_screening": {
+        "models_evaluated": 16,
+        "models_with_a_feasible_shared_threshold": 0,
+        "epoch5": {
+          "pure_negative_false_positive_images": 12,
+          "headphones_mouse_false_positive_frames": 0,
+          "gray_thermos_bottle_confidence": 0.526449
+        },
+        "epoch60": {
+          "pure_negative_false_positive_images": 7,
+          "headphones_mouse_false_positive_frames": 4,
+          "gray_thermos_bottle_confidence": 0.328611
+        }
+      }
+    }
+  },
+  "decision": {
+    "deploy_new_model": false,
+    "reason": "Validation mAP improved, but no checkpoint or shared confidence threshold simultaneously preserved the independent negative regression, removed headphones-to-mouse false positives, detected the real keyboard, and detected the gray thermos as bottle.",
+    "next_action": "Add same-camera-domain gray-thermos positives and headphones/headphones-case negatives; generic web positives alone are insufficient."
+  }
+}
